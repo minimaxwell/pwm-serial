@@ -21,30 +21,15 @@
 
 #include <util/setbaud.h>
 
-#define RISING ( _BV(ISC01) | _BV(ISC00) )
-#define FALLING ( _BV(ISC01) )
-#define CHANGING ( _BV(ISC00) )
-
-/* ----------------------------------------------------------------- */
-/* Variables globales */
-
-volatile uint8_t buff_index;
-volatile uint8_t buffer[255];
-volatile uint8_t done_reading;
-
-/* ----------------------------------------------------------------- */
-void serie_putchar(char c){
-    loop_until_bit_is_set(UCSR0A, UDRE0);
-    UDR0 = c;
+uint8_t serial_getchar(void) {
+	loop_until_bit_is_set(UCSR0A, RXC0); /* Wait until data exists. */
+	return UDR0;
 }
 
 void pins_init(void){
-    DDRD |= _BV(PD5);
-    DDRD |= _BV(PD3);
-    DDRD |= _BV(PD6);
-    DDRB |= _BV(PB1);
-    DDRB |= _BV(PB2);
-    DDRB |= _BV(PB3);
+	/* Setup PortD 3,5,6 and PortB 1,2,3 as out */
+    DDRD |= _BV(PD3) | _BV(PD5) | _BV(PD6);
+    DDRB |= _BV(PB1) | _BV(PB2) | _BV(PB3);
 }
 
 
@@ -52,43 +37,40 @@ void pins_init(void){
 // OCR0B : Vert 1
 // OCR1A : Bleu 2 ( 16 bits )
 // OCR1B : Vert 2 ( 16 bits )
-// OCR2A : Rouge 1
-// OCR2B : Rouge 2
+// OCR2A : Rouge 2
+// OCR2B : Rouge 1
 
 void pwm_init(void){
-	TCCR0A = 0xF3;
+	TCCR0A = 0xA3;
 	TCCR0B = 0x01;
 	OCR0A = 0xFF;
 	OCR0B = 0xFF;
 
-	TCCR1A = 0xF1;
+	TCCR1A = 0xA1;
 	TCCR1B = 0x09;
 	OCR1A = 0xFFFF;
 	OCR1B = 0xFFFF;
 
-	TCCR2A = 0xF3;
+	TCCR2A = 0xA3;
 	TCCR2B = 0x01;
 	OCR2A = 0xFF;
 	OCR2B = 0xFF;
-
 }
 
 
 void led_set(uint8_t led, uint8_t r, uint8_t g, uint8_t b) {
 	if (!led) {
-		OCR2A = (255-r);
-		OCR0B = (255-g);
-		OCR0A = (255-b);
+		OCR2B = r;
+		OCR0B = g;
+		OCR0A = b;
 	} else {
-		OCR2B = (255-r);
-		OCR1BL = (255-g);
-		OCR1AL = (255-b);
+		OCR2A = r;
+		OCR1BL = g;
+		OCR1AL = b;
 	}
 }
 
 void serial_init(void){
-    //
-    // definition de la vitesse
     UBRR0H = UBRRH_VALUE;
     UBRR0L = UBRRL_VALUE;
 
@@ -98,42 +80,32 @@ void serial_init(void){
     UCSR0A &= ~(_BV(U2X0));
 #endif
 
-    UCSR0C = _BV(UCSZ01) | _BV(UCSZ00); // 8N1
-    UCSR0B = _BV(TXEN0);   // enable Tx, pas besoin de Rx
+    UCSR0C = _BV(UCSZ01) | _BV(UCSZ00);
+    UCSR0B = _BV(RXEN0);   // enable Rx, pas besoin de Tx
 
 }
 
 
 int main(void){
 
-    // parametrage des pins en input
     pins_init();
 
-    // parametrage de la liaison serie
     serial_init();
 
 	pwm_init();
 
-	led_set(0, 255,50,100);
-	led_set(1, 255,50,100);
-    // listening mode
+	led_set(0, 10,10,10);
+	led_set(1, 10,10,10);
+	uint8_t r,g,b,l;
     while( 1 ){
 
-		led_set(0, 255,50,100);
-		led_set(1, 255,50,100);
-
-		_delay_ms(1000.0);
-
-		led_set(0, 0,50,100);
-		led_set(1, 0,100,10);
-
-		_delay_ms(1000.0);
+		r = serial_getchar();
+		g = serial_getchar();
+		b = serial_getchar();
+		l = serial_getchar();
+		led_set(l, r, g, b);
 
     }
 
-    // analyse de la commande
-
-    // envoi sur le bus/liaison serie
-    
 }
 
